@@ -13,9 +13,70 @@ ngx_simple_response(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t
 ngx_simple_response_handler(ngx_http_request_t *r);
 
+static void
+ngx_http_set_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)
+{
+    ngx_str_t val;
+    ngx_str_t arg_name;
+
+    ngx_str_set(&arg_name, "foo_intv");
+
+    val.len = v->len;
+    val.data = v->data;
+
+    ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw set intv here: %V, %p", &val, data);
+
+}
+
+static ngx_int_t
+ngx_http_get_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data) 
+{
+    ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw get intv here.");
+
+    ngx_str_t rlt = ngx_string("zongzw");
+    v->data = rlt.data;
+    v->len = rlt.len;
+    v->valid = 1;
+    v->no_cacheable = 0;
+    v->not_found = 0;
+    
+    return NGX_OK;
+}
+
+static ngx_http_variable_t ngx_foo_variables[] = {
+    {
+        ngx_string("foo_intv"),
+        ngx_http_set_foo_intv,
+        ngx_http_get_foo_intv,
+        0,
+        NGX_HTTP_VAR_CHANGEABLE|NGX_HTTP_VAR_NOCACHEABLE,
+        0
+    },
+    ngx_http_null_variable
+};
+
+static ngx_int_t
+ngx_add_module_foo_variables(ngx_conf_t *cf) {
+
+    ngx_http_variable_t *var, *v;
+
+    for (v = ngx_foo_variables; v->name.len; v++) {
+        var = ngx_http_add_variable(cf, &v->name, v->flags);
+        if (var == NULL) {
+            return NGX_ERROR;
+        }
+
+        var->set_handler = v->set_handler;
+        var->get_handler = v->get_handler;
+        var->data = v->data;
+    }
+
+    return NGX_OK;
+}
+
 static ngx_command_t ngx_http_periodic_task_commands[] = {
     {
-        ngx_string("presponse"),
+        ngx_string("simple_response"),
         NGX_HTTP_LOC_CONF|NGX_CONF_NOARGS,
         ngx_simple_response,
         0,
@@ -24,6 +85,7 @@ static ngx_command_t ngx_http_periodic_task_commands[] = {
     },
     ngx_null_command
 };
+
 static void myevent_callback(ngx_event_t *ev);
 
 static char*
@@ -32,7 +94,7 @@ ngx_http_periodic_task_init_main_conf(ngx_conf_t *cf, void *conf);
 static ngx_int_t init_shm_zone(ngx_shm_zone_t *shm_zone, void *data);
 
 static ngx_http_module_t  ngx_http_periodic_task_module_ctx = {
-    NULL,                                    /* preconfiguration */
+    ngx_add_module_foo_variables,            /* preconfiguration */
     NULL,                                    /* postconfiguration */
 
     NULL,                                    /* create main configuration */
