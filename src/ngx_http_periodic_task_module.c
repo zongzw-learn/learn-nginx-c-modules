@@ -14,34 +14,10 @@ static ngx_int_t
 ngx_simple_response_handler(ngx_http_request_t *r);
 
 static void
-ngx_http_set_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)
-{
-    ngx_str_t val;
-    ngx_str_t arg_name;
-
-    ngx_str_set(&arg_name, "foo_intv");
-
-    val.len = v->len;
-    val.data = v->data;
-
-    ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw set intv here: %V, %p", &val, data);
-
-}
+ngx_http_set_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 
 static ngx_int_t
-ngx_http_get_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data) 
-{
-    ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw get intv here.");
-
-    ngx_str_t rlt = ngx_string("zongzw");
-    v->data = rlt.data;
-    v->len = rlt.len;
-    v->valid = 1;
-    v->no_cacheable = 0;
-    v->not_found = 0;
-    
-    return NGX_OK;
-}
+ngx_http_get_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 
 static ngx_http_variable_t ngx_foo_variables[] = {
     {
@@ -239,4 +215,42 @@ ngx_simple_response_handler(ngx_http_request_t *r)
     }
 
     return ngx_http_output_filter(r, &out);
+}
+
+
+static void
+ngx_http_set_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)
+{
+    ngx_str_t val;
+    ngx_str_t arg_name;
+
+    ngx_conf_t *cf;
+    ngx_str_set(&arg_name, "foo_intv");
+
+    val.len = v->len;
+    val.data = v->data;
+
+    ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw set intv here: %V, %p", &val, data);
+
+    cf = ngx_http_conf_get_module_main_conf(r, ngx_http_periodic_task_module);
+
+    ngx_int_t index = ngx_http_get_variable_index(cf, &arg_name);
+
+    ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw set intv here: %V, %p, index: %V", &val, data, index);
+
+}
+
+static ngx_int_t
+ngx_http_get_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data) 
+{
+    ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw get intv here.");
+
+    ngx_str_t rlt = ngx_string("zongzw");
+    v->data = rlt.data;
+    v->len = rlt.len;
+    v->valid = 1;
+    v->no_cacheable = 0;
+    v->not_found = 0;
+
+    return NGX_OK;
 }

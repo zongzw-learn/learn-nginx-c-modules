@@ -4,6 +4,7 @@ cdir=`cd $(dirname $0); pwd`
 nginx_version=1.19.7
 
 nginx-build \
+    --verbose \
     -v $nginx_version \
     -d $cdir \
     --add-module=$cdir \
