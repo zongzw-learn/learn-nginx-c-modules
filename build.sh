@@ -8,9 +8,9 @@ nginx-build \
     -v $nginx_version \
     -d $cdir \
     --add-module=$cdir/src/ngx_http_variable_module \
+    --add-module=$cdir/src/ngx_http_content_module \
     --with-debug \
     --prefix=$cdir/execs
-
 
 (
     cd $cdir/nginx/$nginx_version/nginx-$nginx_version
