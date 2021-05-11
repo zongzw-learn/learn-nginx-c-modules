@@ -7,7 +7,7 @@ nginx-build \
     --verbose \
     -v $nginx_version \
     -d $cdir \
-    --add-module=$cdir \
+    --add-module=$cdir/src/ngx_http_variable_module \
     --with-debug \
     --prefix=$cdir/execs
 

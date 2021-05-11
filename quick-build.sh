@@ -133,6 +133,9 @@ cc_options="-c -pipe  -O \
 (
     cd $cdir/nginx/$nginx_version/nginx-$nginx_version
 
+    rm objs/addon/src/ngx_http_periodic_task_module.o
+    rm objs/nginx
+
     cc $cc_options -I src/http -I src/http/modules \
             -o objs/addon/src/ngx_http_periodic_task_module.o \
             $cdir/src/ngx_http_periodic_task_module.c
