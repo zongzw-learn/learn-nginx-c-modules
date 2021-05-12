@@ -9,6 +9,7 @@ nginx-build \
     -d $cdir \
     --add-module=$cdir/src/ngx_http_variable_module \
     --add-module=$cdir/src/ngx_http_content_module \
+    --add-module=$cdir/src/ngx_http_periodic_module \
     --with-debug \
     --prefix=$cdir/execs
 
@@ -18,4 +19,3 @@ nginx-build \
     rm -f $cdir/execs/conf/nginx.conf
     ln -s $cdir/test_nginx.conf $cdir/execs/conf/nginx.conf
 )
-

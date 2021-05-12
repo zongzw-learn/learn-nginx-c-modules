@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "nginx.h": "c",
-        "__locale": "cpp"
+        "__locale": "cpp",
+        "ngx_http_content_module.h": "c"
     }
 }
