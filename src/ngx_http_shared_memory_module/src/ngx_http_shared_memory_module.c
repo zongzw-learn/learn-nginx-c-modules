@@ -1,5 +1,5 @@
 #include <nginx.h>
-#include "ngx_http_c_module.h"
+#include "ngx_http_shared_memory_module.h"
 
 static ngx_event_t periodic_task_event;
 static ngx_int_t periodic_interval1 = 6000;
@@ -17,44 +17,8 @@ ngx_simple_response(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t
 ngx_simple_response_handler(ngx_http_request_t *r);
 
-static void
-ngx_http_set_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
 
-static ngx_int_t
-ngx_http_get_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data);
-
-static ngx_http_variable_t ngx_foo_variables[] = {
-    {
-        ngx_string("foo_intv"),
-        ngx_http_set_foo_intv,
-        ngx_http_get_foo_intv,
-        0,
-        NGX_HTTP_VAR_CHANGEABLE|NGX_HTTP_VAR_NOCACHEABLE,
-        0
-    },
-    ngx_http_null_variable
-};
-
-static ngx_int_t
-ngx_add_module_foo_variables(ngx_conf_t *cf) {
-
-    ngx_http_variable_t *var, *v;
-
-    for (v = ngx_foo_variables; v->name.len; v++) {
-        var = ngx_http_add_variable(cf, &v->name, v->flags);
-        if (var == NULL) {
-            return NGX_ERROR;
-        }
-
-        var->set_handler = v->set_handler;
-        var->get_handler = v->get_handler;
-        var->data = v->data;
-    }
-
-    return NGX_OK;
-}
-
-static ngx_command_t ngx_http_periodic_task_commands[] = {
+static ngx_http_shared_memory_commands[] = {
     {
         ngx_string("simple_response"),
         NGX_HTTP_LOC_CONF|NGX_CONF_NOARGS,
@@ -84,8 +48,8 @@ ngx_http_periodic_task_init_main_conf(ngx_conf_t *cf, void *conf);
 
 static ngx_int_t init_shm_zone(ngx_shm_zone_t *shm_zone, void *data);
 
-static ngx_http_module_t  ngx_http_periodic_task_module_ctx = {
-    ngx_add_module_foo_variables,            /* preconfiguration */
+static ngx_http_module_t  ngx_http_shared_memory_module_ctx = {
+    NULL,                                    /* preconfiguration */
     NULL,                                    /* postconfiguration */
 
     ngx_http_periodic_task_create_main_conf, /* create main configuration */
@@ -100,8 +64,8 @@ static ngx_http_module_t  ngx_http_periodic_task_module_ctx = {
 
 ngx_module_t  ngx_http_periodic_task_module = {
     NGX_MODULE_V1,
-    &ngx_http_periodic_task_module_ctx,    /* module context */
-    ngx_http_periodic_task_commands,       /* module directives */
+    &ngx_http_shared_memory_module_ctx,    /* module context */
+    ngx_http_shared_memory_commands,       /* module directives */
     NGX_HTTP_MODULE,                       /* module type */
     NULL,                                  /* init master */
     NULL,                                  /* init module */

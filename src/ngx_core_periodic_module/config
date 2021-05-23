@@ -1,0 +1,17 @@
+ngx_addon_name=ngx_core_periodic_module
+
+MODULE_SRCS="                                          \
+                $ngx_addon_dir/src/ngx_core_periodic_module.c \
+               "
+
+MODULE_DEPS="                                          \
+                $ngx_addon_dir/src/ngx_core_periodic_module.h \
+               "
+
+ngx_module_type=CORE
+ngx_module_name=$ngx_addon_name
+ngx_module_incs=
+ngx_module_deps="$MODULE_DEPS"
+ngx_module_srcs="$MODULE_SRCS"
+ngx_module_libs=
+. auto/module
