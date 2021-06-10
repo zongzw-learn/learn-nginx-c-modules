@@ -1,59 +1,53 @@
 #include <nginx.h>
 #include "ngx_http_shared_memory_module.h"
 
-static ngx_event_t periodic_task_event;
-static ngx_int_t periodic_interval1 = 6000;
-
-static ngx_int_t
-ngx_http_periodic_task_init_process(ngx_cycle_t *cycle);
+typedef struct {
+    ngx_str_t v_str;
+} ngx_http_shared_memory_myvals_t;
 
 typedef struct {
-    ngx_int_t periodic_interval;
-} ngx_http_periodic_task_conf_t;
+    ngx_shm_zone_t *zone;
+    ngx_str_t zone_name;
+} ngx_http_shared_memory_conf_t;
 
 static char*
-ngx_simple_response(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+zong_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
+static char*
+ngx_get_set_zone_value(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 static ngx_int_t
 ngx_simple_response_handler(ngx_http_request_t *r);
 
-
-static ngx_http_shared_memory_commands[] = {
+static ngx_command_t ngx_http_shared_memory_commands[] = {
     {
-        ngx_string("simple_response"),
-        NGX_HTTP_LOC_CONF|NGX_CONF_NOARGS,
-        ngx_simple_response,
+        ngx_string("zong_zone"),
+        NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+        zong_zone,
         0,
         0,
         NULL
     },
     {
-        ngx_string("periodic_interval_zong"),
-        NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
-        ngx_conf_set_num_slot,
-        NGX_HTTP_LOC_CONF_OFFSET,
-        offsetof(ngx_http_periodic_task_conf_t, periodic_interval),
+        ngx_string("get_set_zone_value"),
+        NGX_HTTP_LOC_CONF|NGX_CONF_NOARGS,
+        ngx_get_set_zone_value,
+        0,
+        0,
         NULL
     },
     ngx_null_command
 };
 
-static void myevent_callback(ngx_event_t *ev);
-
 static void*
-ngx_http_periodic_task_create_main_conf(ngx_conf_t *cf);
-
-static char*
-ngx_http_periodic_task_init_main_conf(ngx_conf_t *cf, void *conf);
-
-static ngx_int_t init_shm_zone(ngx_shm_zone_t *shm_zone, void *data);
+ngx_shared_memory_create_main_conf(ngx_conf_t *cf);
 
 static ngx_http_module_t  ngx_http_shared_memory_module_ctx = {
     NULL,                                    /* preconfiguration */
     NULL,                                    /* postconfiguration */
 
-    ngx_http_periodic_task_create_main_conf, /* create main configuration */
-    ngx_http_periodic_task_init_main_conf,   /* init main configuration */
+    ngx_shared_memory_create_main_conf,      /* create main configuration */
+    NULL,                                    /* init main configuration */
 
     NULL,                                    /* create server configuration */
     NULL,                                    /* merge server configuration */
@@ -62,14 +56,14 @@ static ngx_http_module_t  ngx_http_shared_memory_module_ctx = {
     NULL,                                    /* merge location configuration */
 };
 
-ngx_module_t  ngx_http_periodic_task_module = {
+ngx_module_t  ngx_http_shared_memory_module = {
     NGX_MODULE_V1,
     &ngx_http_shared_memory_module_ctx,    /* module context */
     ngx_http_shared_memory_commands,       /* module directives */
     NGX_HTTP_MODULE,                       /* module type */
     NULL,                                  /* init master */
     NULL,                                  /* init module */
-    ngx_http_periodic_task_init_process,   /* init process */
+    NULL,                                  /* init process */
     NULL,                                  /* init thread */
     NULL,                                  /* exit thread */
     NULL,                                  /* exit process */
@@ -77,81 +71,78 @@ ngx_module_t  ngx_http_periodic_task_module = {
     NGX_MODULE_V1_PADDING
 };
 
-static void*
-ngx_http_periodic_task_create_main_conf(ngx_conf_t *cf)
-{
-    ngx_http_periodic_task_conf_t *conf;
 
-    conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_periodic_task_conf_t));
-    if (conf == NULL) {
+static void*
+ngx_shared_memory_create_main_conf(ngx_conf_t *cf)
+{
+    ngx_http_shared_memory_conf_t *smcf;
+
+    smcf = ngx_pcalloc(cf->pool, sizeof(ngx_http_shared_memory_conf_t));
+    if (smcf == NULL) {
         return NULL;
     }
+    ngx_log_error(NGX_ERROR_INFO, 
+        cf->log, 0, "%s: ngx_http_shared_memory_conf_t created: %p", __FUNCTION__, smcf);
 
-    conf->periodic_interval = 1000;
-    return conf;
+    return smcf;
 }
 
+
 static ngx_int_t
-ngx_http_periodic_task_init_process(ngx_cycle_t *cycle)
+init_zong_zone(ngx_shm_zone_t *zone, void *data) 
 {
-    ngx_log_error(NGX_ERROR_INFO, cycle->log, 0, 
-        "zongzw ngx_http_periodic_task_init_process Called here");
-    
-    if (ngx_process != NGX_PROCESS_WORKER) {
-        return NGX_OK;
+    ngx_slab_pool_t *shpool = (ngx_slab_pool_t*) zone->shm.addr;
+
+    ngx_http_shared_memory_myvals_t *myvals = ngx_slab_alloc(shpool, sizeof(ngx_http_shared_memory_myvals_t));
+    if (myvals == NULL) {
+        return NGX_ERROR;
     }
 
-    ngx_memzero(&periodic_task_event, sizeof(ngx_event_t));
+    ngx_str_t tmp;
+    ngx_str_set(&tmp, "zongzw-default");
+    myvals->v_str.data = ngx_slab_alloc(shpool, tmp.len);
+    if (myvals->v_str.data == NULL) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(myvals->v_str.data, tmp.data, tmp.len);
+    myvals->v_str.len = tmp.len;
 
-    periodic_task_event.handler = myevent_callback;
-    periodic_task_event.log = cycle->log;
-
-    ngx_add_timer(&periodic_task_event, periodic_interval1);
+    shpool->data = myvals;
 
     return NGX_OK;
 }
 
-static void
-myevent_callback(ngx_event_t *ev) 
+static char*
+zong_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_log_error(NGX_ERROR_INFO, ev->log, 0,
-        "zongzw timer callback is triggered");
+    ngx_str_t *value = cf->args->elts;
+    ngx_str_t *name = &value[1];
+    ngx_int_t size = 65536;
 
-    // periodic_interval *= 2;
-    ngx_add_timer(ev, periodic_interval1);
-}
+    ngx_log_error(NGX_ERROR_INFO, cf->log, 0, "zone name: %V", name);
 
-char*
-ngx_http_periodic_task_init_main_conf(ngx_conf_t *cf, void *conf)
-{
-    ngx_str_t *name;
-    ngx_shm_zone_t *shm_zone;
+    ngx_shm_zone_t *shm_zone = ngx_shared_memory_add(cf, name, size, &ngx_http_shared_memory_module);
+    if (shm_zone == NULL) {
+        return NGX_CONF_ERROR;
+    }
 
-    name = ngx_palloc(cf->pool, sizeof("foo"));
-    ngx_str_set(name, "foo");
+    shm_zone->init = init_zong_zone;
 
-    ngx_log_error(NGX_ERROR_INFO, cf->log, 0, "name: %V", name);
+    ngx_http_shared_memory_conf_t *smcf;
 
-    ngx_int_t size = 1024 * 1024;
+    smcf = conf;
 
+    smcf->zone = shm_zone;
+    smcf->zone_name.data = ngx_pcalloc(cf->pool, name->len);
+    ngx_memcpy(smcf->zone_name.data, name->data, name->len);
+    smcf->zone_name.len = name->len;
 
-    shm_zone = ngx_shared_memory_add(cf, name, size, &ngx_http_periodic_task_module);
-    shm_zone->data = cf->pool;
-    shm_zone->init = init_shm_zone;
-
-    ngx_log_error(NGX_ERROR_INFO, cf->log, 0, "shm addr: %p\n", shm_zone);
-
+    ngx_log_error(NGX_ERROR_INFO, cf->log, 0, "smcf zone_name: %V, zone %p", &smcf->zone_name, shm_zone);
     return NGX_CONF_OK;
 }
 
-static ngx_int_t 
-init_shm_zone(ngx_shm_zone_t *shm_zone, void *data)
-{
-    return NGX_OK;
-}
-
 static char *
-ngx_simple_response(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+ngx_get_set_zone_value(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_core_loc_conf_t  *clcf;
 
@@ -168,12 +159,9 @@ ngx_simple_response_handler(ngx_http_request_t *r)
     ngx_buf_t *b;
     ngx_chain_t out;
     u_char *last;
-    ngx_int_t interval = 2222;
     ngx_int_t size = 1024;
 
-    // ngx_str_t response_content;
-
-    ngx_http_periodic_task_conf_t *conf;
+    ngx_http_shared_memory_conf_t *smcf;
 
     if (r->method != NGX_HTTP_GET) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -197,19 +185,21 @@ ngx_simple_response_handler(ngx_http_request_t *r)
     out.buf = b;
     out.next = NULL;
 
-    conf = ngx_http_get_module_main_conf(r, ngx_http_periodic_task_module);
-    if (conf == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    smcf = ngx_http_get_module_main_conf(r, ngx_http_shared_memory_module);
+    ngx_slab_pool_t *shpool = (ngx_slab_pool_t *) smcf->zone->shm.addr;
+    ngx_http_shared_memory_myvals_t *myval = shpool->data;
+    
+    if (r->args.len) {
+        ngx_slab_free_locked(shpool, myval->v_str.data);
+        void *p = ngx_slab_alloc_locked(shpool, r->args.len);
+        ngx_memcpy(p, r->args.data, r->args.len);
+        myval->v_str.data = p;
+        myval->v_str.len = r->args.len;
+        shpool->data = myval;
     }
 
-    // ngx_str_set(&response_content, "");
-    // response_content.data = ngx_pcalloc(r->pool, 1024);
-    interval = conf->periodic_interval;
     b->last = ngx_snprintf(b->last, last - b->last,
-        "hello c module request/response %d.\n", interval);
-    // response_content.len = p - response_content.data;
-
-    // ngx_memcpy(b, response_content.data, response_content.len);
+        "last request arguments %V.\n", myval);
 
     r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.content_length_n = b->last - b->pos;
@@ -225,42 +215,4 @@ ngx_simple_response_handler(ngx_http_request_t *r)
     }
 
     return ngx_http_output_filter(r, &out);
-}
-
-
-static void
-ngx_http_set_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data)
-{
-    ngx_str_t val;
-    ngx_str_t arg_name;
-
-    // ngx_conf_t *cf;
-    ngx_str_set(&arg_name, "foo_intv");
-
-    val.len = v->len;
-    val.data = v->data;
-
-    ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw set intv here: %V, %p", &val, data);
-
-    // cf = ngx_http_conf_get_module_loc_conf(r, ngx_http_periodic_task_module);
-
-    // ngx_int_t index = ngx_http_get_variable_index(cf, &arg_name);
-
-    // ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw set intv here: %V, %p, index: %V", &val, data, index);
-
-}
-
-static ngx_int_t
-ngx_http_get_foo_intv(ngx_http_request_t *r, ngx_http_variable_value_t *v, uintptr_t data) 
-{
-    ngx_log_error(NGX_ERROR_INFO, r->connection->log, 0, "zongzw get intv here.");
-
-    ngx_str_t rlt = ngx_string("zongzw");
-    v->data = rlt.data;
-    v->len = rlt.len;
-    v->valid = 1;
-    v->no_cacheable = 0;
-    v->not_found = 0;
-
-    return NGX_OK;
 }
